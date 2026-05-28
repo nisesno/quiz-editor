@@ -54,6 +54,7 @@
     <div class="mode-row" id="examTypeRow">
       <label data-etype="tipo_test"><input type="radio" name="examType" value="tipo_test">Tipo Test</label>
       <label data-etype="enunciado"><input type="radio" name="examType" value="enunciado">Enunciado</label>
+      <label data-etype="mixto"><input type="radio" name="examType" value="mixto">Mixto</label>
     </div>
 
     <div id="modeConfig">
@@ -73,6 +74,14 @@
 
       <label>Número de opciones por pregunta</label>
       <input id="numOptions" type="number" min="2" max="8" value="6" style="text-transform:none;">
+    </div>
+
+    <div id="mixtoConfig" style="display:none;">
+      <label>Posición de las preguntas de desarrollo</label>
+      <div class="mode-row" id="enunPosRow">
+        <label data-pos="end"><input type="radio" name="enunPos" value="end">Al final</label>
+        <label data-pos="start"><input type="radio" name="enunPos" value="start">Al principio</label>
+      </div>
     </div>
 
     <div id="enunciadoConfig" style="display:none;">
@@ -95,6 +104,10 @@
     <label style="display:flex;align-items:center;gap:8px;margin-top:6px;text-transform:none;letter-spacing:normal;color:#262626;font-size:.95em;cursor:pointer;">
       <input type="checkbox" id="showDueDateBullets" style="width:auto;margin:0;cursor:pointer;">
       Mostrar bullets bajo "Fecha de entrega" (solo enunciado)
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:6px;text-transform:none;letter-spacing:normal;color:#262626;font-size:.95em;cursor:pointer;">
+      <input type="checkbox" id="showImages" style="width:auto;margin:0;cursor:pointer;">
+      Mostrar imágenes en las preguntas
     </label>
 
     <label>Temporizador (minutos)</label>
@@ -122,7 +135,7 @@
         <div id="enunJsonStatus" style="font-size:.78em;color:#666;margin-top:2px;min-height:1em;"></div>
       </div>
       <div style="font-size:.78em;color:#666;margin-top:4px;line-height:1.5;">
-        Cada pregunta = un bloque essay con su propia área de respuesta. Markdown admitido en <code>text</code>: <code>**negrita**</code> · <code>__subrayado__</code> · <code>***negrita+subrayado***</code> · listas con <code>-</code> o <code>*</code> (indenta 2 espacios para anidar) · línea en blanco = párrafo · acepta <code>&lt;u&gt;</code>, <code>&lt;b&gt;</code>, <code>&lt;em&gt;</code>, <code>&lt;br&gt;</code>.
+        Cada pregunta = un bloque essay con su propia área de respuesta. Markdown admitido en <code>text</code>: <code>**negrita**</code> · <code>__subrayado__</code> · <code>***negrita+subrayado***</code> · <code>#</code>, <code>##</code>, <code>###</code> al inicio de línea = títulos · listas con <code>-</code> o <code>*</code> (indenta 2 espacios para anidar) · línea en blanco = párrafo · acepta <code>&lt;u&gt;</code>, <code>&lt;b&gt;</code>, <code>&lt;em&gt;</code>, <code>&lt;br&gt;</code>.
       </div>
     </div>
 
@@ -163,8 +176,8 @@
   const $bin=document.getElementById('binId'), $key=document.getElementById('masterKey');
 
   // Valores por defecto (puedes cambiarlos en la UI)
-  const DEFAULT_BIN = '69fb8498c0954111d8e780e1';
-  const DEFAULT_KEY = '$2a$10$wvHsFbB/XDrfQECqq/rFgOpTfyUG/4X0zewk34KqzVv9E.xwowhHi';
+  const DEFAULT_BIN = '6a18a5f4ddf5aa59f7718430';
+  const DEFAULT_KEY = '$2a$10$fzNZnNEhpdbbOdFvLCdW..0m4Db8HscxIpHGuWYLCb2xazDV5qsXK';
   // Permite ?bin=...&key=... en la URL
   const params = new URLSearchParams(location.search);
   $bin.value = params.get('bin') || localStorage.getItem(KEY_BIN) || DEFAULT_BIN;
@@ -192,6 +205,9 @@
   const $showDDB = document.getElementById('showDueDateBullets');
   $showDDB.checked = localStorage.getItem('quiz.showDueDateBullets') !== 'false';
   $showDDB.addEventListener('change', e=>localStorage.setItem('quiz.showDueDateBullets', e.target.checked));
+  const $showImages = document.getElementById('showImages');
+  $showImages.checked = localStorage.getItem('quiz.showImages') !== 'false';
+  $showImages.addEventListener('change', e=>localStorage.setItem('quiz.showImages', e.target.checked));
   const $timerDur = document.getElementById('timerDur');
   $timerDur.value = localStorage.getItem('quiz.timerDuration') || '30';
   $timerDur.addEventListener('input', e=>localStorage.setItem('quiz.timerDuration', e.target.value));
@@ -250,6 +266,20 @@
 
   let examType = localStorage.getItem('quiz.examType') || 'tipo_test';
 
+  let enunPosition = localStorage.getItem('quiz.enunPosition') || 'end';
+  function setEnunPosition(p){
+    enunPosition = (p==='start') ? 'start' : 'end';
+    localStorage.setItem('quiz.enunPosition', enunPosition);
+    document.querySelectorAll('#enunPosRow label').forEach(l=>{
+      l.classList.toggle('sel', l.dataset.pos===enunPosition);
+      const r = l.querySelector('input'); if (r) r.checked = l.dataset.pos===enunPosition;
+    });
+  }
+  document.getElementById('enunPosRow').addEventListener('change', e=>{
+    if (e.target.name==='enunPos') setEnunPosition(e.target.value);
+  });
+  setEnunPosition(enunPosition);
+
   let enunQuestions = [];
   try {
     const saved = JSON.parse(localStorage.getItem('quiz.enunQuestions') || 'null');
@@ -280,6 +310,9 @@
           Puntuación:
           <input type="number" min="0" step="0.5" value="${q.points!=null?q.points:1}" data-eact="qpts" data-i="${i}" style="width:90px;">
         </label>
+        <label style="display:block;font-size:.78em;color:#555;margin:10px 0 3px;text-transform:uppercase;letter-spacing:.5px;">Adjuntos de esta pregunta (JSON, opcional)</label>
+        <textarea placeholder='[{"type":"pdf","name":"Tema.pdf"}, {"type":"zip","name":"Recursos"}]' data-eact="qattach" data-i="${i}" style="min-height:70px;font-size:.82em;font-family:ui-monospace,'SF Mono',Menlo,monospace;">${escapeHtml(q.attachments&&q.attachments.length?JSON.stringify(q.attachments):'')}</textarea>
+        <div class="enun-attach-status" data-i="${i}" style="font-size:.74em;color:#666;min-height:1em;"></div>
       `;
       c.appendChild(div);
     });
@@ -289,9 +322,33 @@
     if (a==='qlabel') enunQuestions[i].label = e.target.value;
     else if (a==='qtext') enunQuestions[i].text = e.target.value;
     else if (a==='qpts') enunQuestions[i].points = parseFloat(e.target.value) || 0;
+    else if (a==='qattach'){ handleQAttach(i, e.target.value); return; }
     else return;
     saveEnunLocal();
   });
+  function handleQAttach(i, raw){
+    raw = (raw||'').trim();
+    const statusEl = document.querySelector('.enun-attach-status[data-i="'+i+'"]');
+    if (!raw){
+      enunQuestions[i].attachments = [];
+      if (statusEl){ statusEl.textContent = ''; statusEl.style.color = '#666'; }
+      saveEnunLocal();
+      return;
+    }
+    try {
+      const p = JSON.parse(raw);
+      if (!Array.isArray(p)) throw new Error('Debe ser un array');
+      enunQuestions[i].attachments = p.filter(x => x && typeof x === 'object');
+      if (statusEl){
+        statusEl.textContent = '✓ ' + enunQuestions[i].attachments.length + ' adjunto' + (enunQuestions[i].attachments.length===1?'':'s');
+        statusEl.style.color = '#2a7';
+      }
+      saveEnunLocal();
+    } catch(err){
+      // No sobrescribir los adjuntos previos si el JSON es inválido
+      if (statusEl){ statusEl.textContent = '✗ JSON inválido: ' + err.message; statusEl.style.color = '#c1342f'; }
+    }
+  }
   document.getElementById('enunQuestionsList').addEventListener('click', e=>{
     const a=e.target.dataset.eact; if(!a) return;
     const i=+e.target.dataset.i;
@@ -324,11 +381,17 @@
     try {
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) throw new Error('Debe ser un array');
-      const normalized = parsed.map(q => ({
-        label: String(q.label || q.title || ''),
-        text: String(q.text || q.enunciado || ''),
-        points: (typeof q.points === 'number') ? q.points : (parseFloat(q.points) || 1)
-      }));
+      const normalized = parsed.map(q => {
+        const obj = {
+          label: String(q.label || q.title || ''),
+          text: String(q.text || q.enunciado || ''),
+          points: (typeof q.points === 'number') ? q.points : (parseFloat(q.points) || 1)
+        };
+        if (Array.isArray(q.attachments) && q.attachments.length){
+          obj.attachments = q.attachments.filter(x => x && typeof x === 'object');
+        }
+        return obj;
+      });
       $enunJsonStatus.textContent = '✓ ' + normalized.length + ' pregunta' + (normalized.length===1?'':'s');
       $enunJsonStatus.style.color = '#2a7';
       return normalized;
@@ -386,19 +449,26 @@
   $enunAttach.addEventListener('input', e=>{ localStorage.setItem('quiz.enunAttachments', e.target.value); validateAttachmentsJson(); });
   validateAttachmentsJson();
   function setExamType(t){
-    examType = (t==='enunciado') ? 'enunciado' : 'tipo_test';
+    examType = (t==='enunciado' || t==='mixto') ? t : 'tipo_test';
     localStorage.setItem('quiz.examType', examType);
     document.querySelectorAll('#examTypeRow label').forEach(l=>{
       l.classList.toggle('sel', l.dataset.etype===examType);
       const r = l.querySelector('input'); if (r) r.checked = l.dataset.etype===examType;
     });
-    const isEnun = examType==='enunciado';
-    document.getElementById('tipoTestSection').style.display = isEnun ? 'none' : '';
-    document.getElementById('tipoTestConfig').style.display  = isEnun ? 'none' : '';
-    document.getElementById('modeConfig').style.display       = isEnun ? 'none' : '';
-    document.getElementById('styleConfig').style.display      = isEnun ? 'none' : '';
-    document.getElementById('enunciadoConfig').style.display  = isEnun ? '' : 'none';
-    document.getElementById('enunciadoSection').style.display = isEnun ? '' : 'none';
+    // Secciones de tipo test (test + opciones + modo + estilo)
+    const showTest = (examType==='tipo_test' || examType==='mixto');
+    // Secciones de enunciado (preguntas de desarrollo + adjuntos/puntuación)
+    const showEnun = (examType==='enunciado' || examType==='mixto');
+    const disp = b => b ? '' : 'none';
+    document.getElementById('tipoTestSection').style.display = disp(showTest);
+    document.getElementById('tipoTestConfig').style.display  = disp(showTest);
+    document.getElementById('modeConfig').style.display       = disp(showTest);
+    document.getElementById('styleConfig').style.display      = disp(showTest);
+    // El config de enunciado (puntuación máxima + adjuntos globales) solo aplica a enunciado puro.
+    // En mixto los adjuntos van por pregunta (dentro de la sección de preguntas).
+    document.getElementById('enunciadoConfig').style.display  = disp(examType==='enunciado');
+    document.getElementById('enunciadoSection').style.display = disp(showEnun);
+    document.getElementById('mixtoConfig').style.display      = disp(examType==='mixto');
   }
   document.getElementById('examTypeRow').addEventListener('change', e=>{
     if (e.target.name==='examType') setExamType(e.target.value);
@@ -431,6 +501,8 @@
             </li>`).join('')}
         </ul>
         <button class="outline tiny" data-act="addo" data-i="${i}">+ Opción</button>
+        <label style="display:block;font-size:.78em;color:#555;margin:10px 0 3px;text-transform:uppercase;letter-spacing:.5px;">Imagen (opcional)</label>
+        <input type="text" placeholder="ej: imagenes/Arbol.png" value="${escapeHtml(q.image||'')}" data-act="qimg" data-i="${i}">
       `;
       c.appendChild(div);
     });
@@ -440,6 +512,7 @@
     const a=e.target.dataset.act, i=+e.target.dataset.i, j=+e.target.dataset.j;
     if (a==='qtext') questions[i].text = e.target.value;
     if (a==='otext') questions[i].options[j] = e.target.value;
+    if (a==='qimg') questions[i].image = e.target.value;
   });
   document.getElementById('questions').addEventListener('click', e=>{
     const a=e.target.dataset.act; if(!a) return;
@@ -475,9 +548,10 @@
       const d = await r.json();
       const rec = d.record || d;
       if (!rec) { toast('Bin vacío'); return; }
-      if (rec.examType==='enunciado' || rec.examType==='tipo_test') setExamType(rec.examType);
+      if (rec.examType==='enunciado' || rec.examType==='tipo_test' || rec.examType==='mixto') setExamType(rec.examType);
+      if (rec.enunPosition==='start' || rec.enunPosition==='end') setEnunPosition(rec.enunPosition);
       if (Array.isArray(rec.enunciadoQuestions) && rec.enunciadoQuestions.length){
-        enunQuestions = rec.enunciadoQuestions.map(q=>({label:q.label||'', text:q.text||'', points:(typeof q.points==='number'?q.points:1)}));
+        enunQuestions = rec.enunciadoQuestions.map(q=>({label:q.label||'', text:q.text||'', points:(typeof q.points==='number'?q.points:1), attachments:(Array.isArray(q.attachments)?q.attachments.filter(x=>x&&typeof x==='object'):[])}));
         saveEnunLocal(); renderEnunQuestions();
         if (enunInputMode === 'json') refreshEnunJsonFromVisual();
       } else if (typeof rec.enunciado === 'string' && rec.enunciado.trim()){
@@ -498,13 +572,14 @@
       if (typeof rec.showAdditional === 'boolean') { $showAdd.checked = rec.showAdditional; localStorage.setItem('quiz.showAdditional', rec.showAdditional); }
       if (typeof rec.showTimeLimit === 'boolean') { $showTL.checked = rec.showTimeLimit; localStorage.setItem('quiz.showTimeLimit', rec.showTimeLimit); }
       if (typeof rec.showDueDateBullets === 'boolean') { $showDDB.checked = rec.showDueDateBullets; localStorage.setItem('quiz.showDueDateBullets', rec.showDueDateBullets); }
+      if (typeof rec.showImages === 'boolean') { $showImages.checked = rec.showImages; localStorage.setItem('quiz.showImages', rec.showImages); }
       if (typeof rec.timerDuration === 'number') { $timerDur.value = rec.timerDuration; localStorage.setItem('quiz.timerDuration', rec.timerDuration); }
       if (typeof rec.timerStart === 'number' && rec.timerStart) { timerStart = rec.timerStart; localStorage.setItem('quiz.timerStart', rec.timerStart); }
       else if (rec.timerStart === null) { timerStart = null; localStorage.removeItem('quiz.timerStart'); }
       refreshTimerStatus();
       if (rec.selStyle==='green' || rec.selStyle==='gray') setSelStyle(rec.selStyle);
       if (Array.isArray(rec.questions) && rec.questions.length){
-        questions = rec.questions.map(q=>({ text:q.text||'', options:Array.isArray(q.options)?q.options.slice():['','','',''] }));
+        questions = rec.questions.map(q=>{ const o={ text:q.text||'', options:Array.isArray(q.options)?q.options.slice():['','','',''], image:q.image||'' }; if (typeof q.code==='string') o.code=q.code; if (typeof q.points==='number') o.points=q.points; return o; });
         render();
         toast(examType==='enunciado' ? 'Cargado (enunciado)' : 'Cargado ('+questions.length+')');
       } else {
@@ -518,10 +593,17 @@
     const c=creds(); if(!c) return;
     // Limpia opciones vacías al final pero conserva el texto
     const cleanedEnunQs = enunQuestions
-      .map(q=>({label:(q.label||'').trim(), text:q.text||'', points:(typeof q.points==='number'?q.points:parseFloat(q.points)||0)}))
+      .map(q=>{
+        const obj = {label:(q.label||'').trim(), text:q.text||'', points:(typeof q.points==='number'?q.points:parseFloat(q.points)||0)};
+        if (Array.isArray(q.attachments) && q.attachments.length){
+          obj.attachments = q.attachments.filter(x => x && typeof x === 'object');
+        }
+        return obj;
+      })
       .filter(q=>q.text.trim());
     const payload = {
       examType: examType,
+      enunPosition: enunPosition,
       enunciadoQuestions: cleanedEnunQs,
       enunciadoMaxPoints: parseFloat($enunMaxPts.value) || 1,
       attachments: (function(){ const v = validateAttachmentsJson(); return Array.isArray(v) ? v : []; })(),
@@ -532,16 +614,23 @@
       showAdditional: $showAdd.checked,
       showTimeLimit: $showTL.checked,
       showDueDateBullets: $showDDB.checked,
+      showImages: $showImages.checked,
       selStyle: selStyle,
       timerStart: timerStart || null,
       timerDuration: parseInt($timerDur.value) || 15,
       questions: questions
-        .map(q=>({ text:q.text.trim(), options:q.options.map(o=>o.trim()) }))
+        .map(q=>{
+          const obj = { text:q.text.trim(), options:q.options.map(o=>o.trim()) };
+          if (q.image && q.image.trim()) obj.image = q.image.trim();
+          if (typeof q.code === 'string' && q.code) obj.code = q.code;
+          if (typeof q.points === 'number') obj.points = q.points;
+          return obj;
+        })
         .filter(q=>q.text)
     };
-    if (examType==='tipo_test' && !payload.questions.length){ toast('No hay preguntas con texto'); return; }
-    if (examType==='enunciado' && enunInputMode==='json' && validateEnunJson() === null){ toast('JSON de preguntas inválido'); return; }
-    if (examType==='enunciado' && validateAttachmentsJson() === null){ toast('JSON de adjuntos inválido'); return; }
+    if ((examType==='tipo_test' || examType==='mixto') && !payload.questions.length){ toast('No hay preguntas tipo test con texto'); return; }
+    if ((examType==='enunciado' || examType==='mixto') && enunInputMode==='json' && validateEnunJson() === null){ toast('JSON de preguntas inválido'); return; }
+    if ((examType==='enunciado' || examType==='mixto') && validateAttachmentsJson() === null){ toast('JSON de adjuntos inválido'); return; }
     try{
       const r = await fetch(`https://api.jsonbin.io/v3/b/${c.id}`, {
         method:'PUT',
@@ -550,7 +639,9 @@
       });
       if(!r.ok) throw new Error('HTTP '+r.status);
       toast(
-        examType==='enunciado'
+        examType==='mixto'
+          ? 'Guardado ('+payload.questions.length+' test + '+payload.enunciadoQuestions.length+' desarrollo)'
+          : examType==='enunciado'
           ? (payload.enunciadoQuestions.length
               ? 'Guardado ('+payload.enunciadoQuestions.length+' preguntas)'
               : 'Guardado (enunciado por defecto)')
